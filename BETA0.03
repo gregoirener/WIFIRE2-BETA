@@ -146,17 +146,39 @@ def brute_force_router():
         print("\n[*] Attack stopped.")
 
 
+def nuclei_scan():
+    """Run an automated vulnerability scan using Nuclei."""
+    target_ip = input("[?] Enter target IP or domain for scanning: ").strip()
+
+    if not target_ip:
+        print("[!] Invalid target. Scan canceled.")
+        return
+
+    print(f"[*] Scanning {target_ip} with Nuclei...")
+
+    command = f"nuclei -u {target_ip} -silent"
+
+    try:
+        result = run_command(command)
+        print(result if result else "[+] Scan completed. No issues found.")
+    except KeyboardInterrupt:
+        print("\n[*] Scan interrupted.")
+
+import time
+from scapy.all import ARP, Ether, srp
+
 def interactive_shell():
     """Main interactive terminal loop."""
     global interface
     interface = get_wifi_interface()
 
     while True:
-        print("\n===WIFIRE-2.0 BETA===")
+        print("\n=== WIFIRE-2.0 BETA ===")
         print("1. Scan Wi-Fi Networks")
         print("2. Start MITM Attack (ARP Spoofing + Sniffing + SSL Stripping)")
         print("3. Brute-force Router Login (Dictionary Attack)")
-        print("4. Exit")
+        print("4. Run Nuclei Vulnerability Scan")
+        print("5. Exit")
 
         choice = input("[?] Select an option: ").strip()
 
@@ -167,6 +189,9 @@ def interactive_shell():
         elif choice == "3":
             brute_force_router()
         elif choice == "4":
+            nuclei_scan()
+
+        elif choice == "5":
             restore_network()
         else:
             print("[!] Invalid option. Try again.")
