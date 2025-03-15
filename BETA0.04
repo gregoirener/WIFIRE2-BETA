@@ -166,6 +166,130 @@ def nuclei_scan():
 
 import time
 from scapy.all import ARP, Ether, srp
+import subprocess
+import time
+
+def ssid_spam():
+    print("\n[SSID Spam] Press Enter for default names or type 20 custom SSIDs separated by commas:")
+    user_input = input(">> ").strip()
+
+    if user_input == "":
+        ssids = [
+            "FBI_Van_42", "NSA_Surveillance", "Hacker_Inside", "Virus_Spreading", "Illegal_Network",
+            "Pentest_Lab", "SkidNet", "Free_VPN_Please", "CIA_Secret", "DDoS_Master",
+            "MrRobot_Proxy", "DarkWeb_Entry", "Hackers_Loft", "Bruteforce_AP", "DeepState_WiFi",
+            "AnonymousHQ", "PacketSniffer", "Phishing_Hotspot", "Trojan_5G", "CyberWarfare_Net"
+        ]
+    else:
+        ssids = [name.strip() for name in user_input.split(",")]
+        if len(ssids) != 20:
+            print("[Error] You must enter exactly 20 SSIDs!")
+            return
+
+    print("\n[+] Creating 20 Fake Wi-Fi Networks...")
+
+    for ssid in ssids:
+        try:
+            subprocess.Popen(["nmcli", "device", "wifi", "hotspot", "ifname", "wlp0s20f3", "ssid", ssid, "password", "12345678"])
+            time.sleep(0.5)  # Delay to prevent overwhelming the system
+            print(f"[*] Fake SSID created: {ssid}")
+        except Exception as e:
+            print(f"[Error] Failed to create {ssid}: {e}")
+
+    print("\n[+] SSID Spam is Active! Use 'nmcli connection delete' to remove networks manually.")
+
+
+
+
+
+import subprocess
+import re
+
+def spy_dns():
+    print("\n[+] Capturing DNS Requests (Press Ctrl+C to stop)...")
+
+    # Run tcpdump to capture only DNS queries (port 53)
+    process = subprocess.Popen(
+        ["sudo", "tcpdump", "-l", "-i", "wlp0s20f3", "udp port 53"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True
+    )
+
+    try:
+        # Read real-time output line by line
+        for line in process.stdout:
+            domain_match = re.search(r'\? (.*?)\.', line)
+            if domain_match:
+                domain = domain_match.group(1)
+                print(f"\033[1;36m[DNS] {domain}\033[0m")  # Cyan output
+    except KeyboardInterrupt:
+        print("\n[+] Stopping DNS capture.")
+        process.terminate()
+
+
+import subprocess
+import re
+
+
+def get_local_network():
+    """Get the local network IP range (e.g., 192.168.1.0/24)"""
+    try:
+        result = subprocess.run(["ip", "route"], capture_output=True, text=True)
+        match = re.search(r"(\d+\.\d+\.\d+\.\d+)/\d+", result.stdout)
+        if match:
+            return match.group(1) + "/24"
+        else:
+            print("[Error] Could not determine local network range.")
+            return None
+    except Exception as e:
+        print(f"[Error] Failed to get network info: {e}")
+        return None
+
+
+def device_fingerprint():
+    """Scan the network for devices and detect their OS and vendor."""
+    print("\n[+] Scanning network for connected devices...\n")
+
+    network_range = get_local_network()
+    if not network_range:
+        return
+
+    try:
+        # Step 1: Use arp-scan to list connected devices
+        arp_output = subprocess.run(["arp-scan", "-l"], capture_output=True, text=True).stdout
+
+        devices = []
+        for line in arp_output.split("\n"):
+            match = re.search(r"(\d+\.\d+\.\d+\.\d+)\s+([0-9A-Fa-f:]+)\s+(.+)", line)
+            if match:
+                ip, mac, vendor = match.groups()
+                devices.append((ip, mac, vendor))
+
+        if not devices:
+            print("[!] No devices found on the network.")
+            return
+
+        print("\n[+] Found Devices:\n")
+        for ip, mac, vendor in devices:
+            print(f"  📡 {ip} - {vendor.strip()} [{mac}]")
+
+        print("\n[+] Running OS detection...\n")
+
+        # Step 2: Use nmap to guess the OS
+        for ip, _, _ in devices:
+            try:
+                nmap_output = subprocess.run(["nmap", "-O", ip], capture_output=True, text=True).stdout
+                os_match = re.search(r"OS details:\s+(.+)", nmap_output)
+                os_guess = os_match.group(1) if os_match else "Unknown OS"
+                print(f"  💻 {ip} - {os_guess}")
+            except Exception as e:
+                print(f"[Error] Failed to scan {ip}: {e}")
+
+        print("\n[+] Device fingerprinting complete!")
+
+    except Exception as e:
+        print(f"[Error] Failed to scan network: {e}")
 
 def interactive_shell():
     """Main interactive terminal loop."""
@@ -173,14 +297,21 @@ def interactive_shell():
     interface = get_wifi_interface()
 
     while True:
-        print("\n=== WIFIRE-2.0 BETA ===")
-        print("1. Scan Wi-Fi Networks")
-        print("2. Start MITM Attack (ARP Spoofing + Sniffing + SSL Stripping)")
-        print("3. Brute-force Router Login (Dictionary Attack)")
-        print("4. Run Nuclei Vulnerability Scan")
-        print("5. Exit")
+        print("\033[1;32m")  # Set text color to bright green
+        print("\n" + "=" * 30)
+        print("     WIFIRE-2.0 BETA".center(30))
+        print("=" * 30)
+        print("\033[0m")  # Reset text color
+        print("\033[1;32m[1]\033[0m Scan Wi-Fi Networks")
+        print("\033[1;32m[2]\033[0m Start MITM Attack (ARP Spoofing + Sniffing + SSL Stripping)")
+        print("\033[1;32m[3]\033[0m Brute-force Router Login (Dictionary Attack)")
+        print("\033[1;32m[4]\033[0m Run Nuclei Vulnerability Scan")
+        print("\033[1;32m[5]\033[0m SSID Spam Mode (Fake Wi-Fi Networks)")
+        print("\033[1;32m[6]\033[0m Passive Wi-Fi Traffic Analysis (DNS Spy)")
+        print("\033[1;32m[7]\033[0m Device Fingerprinting (Find Devices & OS on the Network)")  # New feature
+        print("\033[1;32m[8]\033[0m Exit")  # Exit moved to last
 
-        choice = input("[?] Select an option: ").strip()
+        choice = input("\n\033[1;32m[?] Select an option:\033[0m ").strip()
 
         if choice == "1":
             scan_wifi(interface)
@@ -190,11 +321,17 @@ def interactive_shell():
             brute_force_router()
         elif choice == "4":
             nuclei_scan()
-
         elif choice == "5":
+            ssid_spam()
+        elif choice == "6":  # Passive Traffic Analysis feature
+            spy_dns()
+        elif choice == "7":  # Device Fingerprinting feature
+            device_fingerprint()
+        elif choice == "8":  # Exit option now last
             restore_network()
         else:
-            print("[!] Invalid option. Try again.")
+            print("\033[1;31m[!] Invalid option. Try again.\033[0m")  # Red text for errors
+
 
 
 if __name__ == "__main__":
