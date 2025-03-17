@@ -2,6 +2,8 @@
 
 ## Overview
 WIFIRE 2.0 Beta is an advanced network monitoring and analysis tool designed for ethical penetration testing and security assessments. This updated version introduces new capabilities for detecting and logging network activity, capturing handshakes, and identifying potential vulnerabilities in Wi-Fi networks.
+## GUI
+![wifirepreview](https://github.com/user-attachments/assets/0c428b17-097b-46e9-af9c-9eb33c64cbd1)
 
 ## Features
 - **Network Device Detection**: Monitors and logs devices connecting to or disconnecting from the network.
