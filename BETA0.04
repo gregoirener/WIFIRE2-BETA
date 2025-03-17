@@ -302,6 +302,22 @@ def interactive_shell():
         print("     WIFIRE-2.0 BETA".center(30))
         print("=" * 30)
         print("\033[0m")  # Reset text color
+
+        # ASCII Art Banner
+        print("\033[1;31m")  # Set text color to bright red
+        print("""
+▄█     █▄   ▄█     ▄████████  ▄█     ▄████████    ▄████████ 
+███     ███ ███    ███    ███ ███    ███    ███   ███    ███ 
+███     ███ ███▌   ███    █▀  ███▌   ███    ███   ███    █▀  
+███     ███ ███▌  ▄███▄▄▄     ███▌  ▄███▄▄▄▄██▀  ▄███▄▄▄     
+███     ███ ███▌ ▀▀███▀▀▀     ███▌ ▀▀███▀▀▀▀▀   ▀▀███▀▀▀     
+███     ███ ███    ███        ███  ▀███████████   ███    █▄  
+███ ▄█▄ ███ ███    ███        ███    ███    ███   ███    ███ 
+ ▀███▀███▀  █▀     ███        █▀     ███    ███   ██████████ 
+                                     ███    ███              
+        """)
+        print("\033[0m")  # Reset text color
+
         print("\033[1;32m[1]\033[0m Scan Wi-Fi Networks")
         print("\033[1;32m[2]\033[0m Start MITM Attack (ARP Spoofing + Sniffing + SSL Stripping)")
         print("\033[1;32m[3]\033[0m Brute-force Router Login (Dictionary Attack)")
@@ -331,7 +347,6 @@ def interactive_shell():
             restore_network()
         else:
             print("\033[1;31m[!] Invalid option. Try again.\033[0m")  # Red text for errors
-
 
 
 if __name__ == "__main__":
